@@ -1038,8 +1038,13 @@ async function testSheets(){
   if(!url){st.innerHTML="<span style=color:var(--red)>URL kiritilmagan</span>";return;}
   st.innerHTML="<span style=color:var(--text2)>Tekshirilmoqda...</span>";
   try{
-    await fetch(url+"?action=ping",{mode:"no-cors"});
-    st.innerHTML="<span style=color:var(--green)>Ulandi!</span>";
+    const res = await fetch(url+"?action=ping");
+    const json = await res.json();
+    if(json.success){
+      st.innerHTML="<span style=color:var(--green)>✅ Ulandi! Google Sheets ga yozilmoqda.</span>";
+    } else {
+      st.innerHTML="<span style=color:var(--amber)>Javob keldi lekin xato: "+json.message+"</span>";
+    }
   }catch(e){
     st.innerHTML="<span style=color:var(--amber)>Ulanib bolmadi. URLni tekshiring.</span>";
   }
@@ -1047,7 +1052,12 @@ async function testSheets(){
 async function syncToSheets(op){
   if(!DB.sheetsUrl) return;
   try{
-    fetch(DB.sheetsUrl,{method:"POST",mode:"no-cors",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"add",operatsiya:op})});
+    // GET orqali yuboramiz - CORS muammosiz ishlaydi
+    const params = new URLSearchParams({
+      action: "add",
+      op: JSON.stringify(op)
+    });
+    fetch(DB.sheetsUrl + "?" + params.toString());
   }catch(e){}
 }
 }
