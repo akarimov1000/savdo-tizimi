@@ -431,6 +431,19 @@ tr:hover td{background:var(--bg3);}
     <div class="section" id="sec-admin">
       <div class="sec-header"><div class="sec-title">⚙️ Admin panel</div></div>
       <div class="card">
+      <div class="card">
+        <div class="card-title">&#128279; Google Sheets ulash</div>
+        <div style="color:var(--text2);font-size:14px;margin-bottom:14px;">Apps Script URL ni kiriting. Shundan keyin barcha malumotlar Google Sheets ga yoziladi.</div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label>Apps Script Web App URL</label>
+          <input class="inp" type="text" id="sheets-url" placeholder="https://script.google.com/macros/s/...">
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <button class="btn-submit" onclick="saveSheetsUrl()">Saqlash</button>
+          <button class="btn-logout" onclick="testSheets()">Ulanishni tekshirish</button>
+        </div>
+        <div id="sheets-status" style="margin-top:10px;font-size:14px;"></div>
+      </div>
         <div class="card-title">Foydalanuvchilar</div>
         <div class="table-wrap">
           <table><thead><tr><th>Login</th><th>Ism</th><th>Rol</th><th>Amal</th></tr></thead>
@@ -491,6 +504,7 @@ let sotuvImei = null; // tanlangan IMEI ob'ekti
 
 // ============ DB ============
 function loadDB(){
+  DB.sheetsUrl="";
   try{
     const d = localStorage.getItem('savdopro2_db');
     if(d){
@@ -498,6 +512,7 @@ function loadDB(){
       if(s.mahsulotlar) DB.mahsulotlar = s.mahsulotlar;
       if(s.imeilar) DB.imeilar = s.imeilar;
       if(s.operatsiyalar) DB.operatsiyalar = s.operatsiyalar;
+      if(s.sheetsUrl) DB.sheetsUrl = s.sheetsUrl;
       if(s.users){
         const extra = s.users.filter(u=>!DEFAULT_USERS.find(d=>d.login===u.login));
         DB.users = [...DEFAULT_USERS, ...extra];
@@ -544,7 +559,7 @@ function showTab(id, btn){
   if(id==='qarz-qayt') renderQarzlar();
   if(id==='jurnal') renderJurnal();
   if(id==='ombor') renderOmbor();
-  if(id==='admin'){ renderAdminTable(); renderUsers(); }
+  if(id==='admin'){ renderAdminTable(); renderUsers(); const su=document.getElementById('sheets-url'); if(su && DB.sheetsUrl) su.value=DB.sheetsUrl; }
   if(id==='kirim') initImeiInputs();
 }
 
@@ -741,7 +756,7 @@ function submitSotuv(){
     qarzHolat: qarz>0?'ochiq':'yopiq',
   };
   sotuvImei.sotuvOpId = op.id;
-  DB.operatsiyalar.unshift(op);
+  DB.operatsiyalar.unshift(op); syncToSheets(op);
   saveDB();
   showToast(`Sotuv saqlandi! IMEI: ${sotuvImei.imei6}`);
   cancelSotuv();
@@ -785,7 +800,7 @@ function submitKirim(){
     summa: narx*imeiValues.length, valyuta, izoh,
     xodim: currentUser.ism, qarzHolat:'yopiq',
   };
-  DB.operatsiyalar.unshift(op);
+  DB.operatsiyalar.unshift(op); syncToSheets(op);
   saveDB();
   showToast(`Kirim saqlandi! ${imeiValues.length} ta qurilma`);
   resetForm(['k-nomi','k-narx','k-supplier','k-izoh']);
@@ -807,7 +822,7 @@ function submitQarzBer(){
     tavsif:`${tur==='xodim'?'👤 Xodim':'🧑 Mijoz'}: ${ismi} (${tel||'—'})`,
     summa,valyuta,muddatSana:sana,izoh,mijoz:ismi,tel,qarzTuri:tur,
     xodim:currentUser.ism,qarzHolat:'ochiq',imei6:'—'};
-  DB.operatsiyalar.unshift(op);
+  DB.operatsiyalar.unshift(op); syncToSheets(op);
   saveDB();
   showToast('Qarz yozildi!');
   resetForm(['qb-ismi','qb-tel','qb-summa','qb-izoh']);
@@ -857,7 +872,7 @@ function submitQaytarish(){
     tavsif:`${selectedQarz.mijoz||'—'} — qarz qaytarildi`,
     imei6:'—',summa,valyuta:selectedQarz.valyuta,izoh,
     xodim:currentUser.ism,qarzHolat:'yopiq',refId:selectedQarz.id};
-  DB.operatsiyalar.unshift(op);
+  DB.operatsiyalar.unshift(op); syncToSheets(op);
   saveDB();
   showToast('Qarz qaytarish saqlandi!');
   closeQaytarish(); renderQarzlar();
@@ -1011,6 +1026,30 @@ function addUser(){
 function delUser(i){
   if(!confirm('Xodimni o\'chirmoqchimisiz?')) return;
   DB.users.splice(i,1); saveDB(); renderUsers();
+
+// ============ SHEETS ============
+function saveSheetsUrl(){
+  DB.sheetsUrl=document.getElementById("sheets-url").value.trim();
+  saveDB(); showToast("URL saqlandi!");
+}
+async function testSheets(){
+  const url=document.getElementById("sheets-url").value.trim();
+  const st=document.getElementById("sheets-status");
+  if(!url){st.innerHTML="<span style=color:var(--red)>URL kiritilmagan</span>";return;}
+  st.innerHTML="<span style=color:var(--text2)>Tekshirilmoqda...</span>";
+  try{
+    await fetch(url+"?action=ping",{mode:"no-cors"});
+    st.innerHTML="<span style=color:var(--green)>Ulandi!</span>";
+  }catch(e){
+    st.innerHTML="<span style=color:var(--amber)>Ulanib bolmadi. URLni tekshiring.</span>";
+  }
+}
+async function syncToSheets(op){
+  if(!DB.sheetsUrl) return;
+  try{
+    fetch(DB.sheetsUrl,{method:"POST",mode:"no-cors",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"add",operatsiya:op})});
+  }catch(e){}
+}
 }
 
 // ============ HELPERS ============
